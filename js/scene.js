@@ -28,10 +28,18 @@ function mat(params) {
   return new THREE.MeshStandardMaterial(p);
 }
 
+// borde irregular: el radio varía un poco con el ángulo (una crepa real nunca es un círculo perfecto)
+const edgeK = (th) => 1 + 0.014 * Math.sin(th * 11 + 0.4) + 0.008 * Math.sin(th * 23 + 1.3) + 0.004 * Math.sin(th * 47);
+// volantes del borde: la masa fina se ondula más cerca del borde
+const ruffle = (x, z) => {
+  const r = Math.hypot(x, z) / R;
+  const th = Math.atan2(-z, x);
+  return smooth(0.72, 1.02, r) * (0.026 * Math.sin(th * 15 + 0.6) + 0.012 * Math.sin(th * 33 + 2.1));
+};
 // ondulación orgánica compartida por todas las capas (para que encajen)
 const wave = (x, z) =>
   0.03 * Math.sin(x * 3.1 + z * 1.7) * Math.cos(z * 2.3 - x * 0.7) +
-  0.014 * Math.sin(x * 7.0 - z * 5.0);
+  0.014 * Math.sin(x * 7.0 - z * 5.0) + ruffle(x, z);
 
 const puffAt = (x, z, amt) => {
   const r = Math.hypot(x, z) / R;
@@ -59,30 +67,87 @@ function canvasTex(size, draw, srgb = true) {
   return t;
 }
 
-const crepeTex = () =>
+// ruido de valor suave (fBm) para texturas orgánicas
+function makeNoise(seed) {
+  let s = seed;
+  const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  const V = new Float32Array(256 * 256);
+  for (let i = 0; i < V.length; i++) V[i] = rnd();
+  const at = (x, y) => V[(y & 255) * 256 + (x & 255)];
+  const n = (x, y) => {
+    const xi = Math.floor(x), yi = Math.floor(y);
+    const xf = x - xi, yf = y - yi;
+    const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+    const a = at(xi, yi), b = at(xi + 1, yi), c = at(xi, yi + 1), d = at(xi + 1, yi + 1);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+  };
+  return (x, y, oct = 4) => {
+    let sum = 0, amp = 0.5, f = 1, norm = 0;
+    for (let o = 0; o < oct; o++) { sum += amp * n(x * f, y * f); norm += amp; amp *= 0.5; f *= 2.03; }
+    return sum / norm;
+  };
+}
+
+// Masa: color + relieve generados juntos. El "encaje" café de la plancha es una red de
+// manchas con el contorno más tostado; el borde (r → 0.5 en UV) sale más dorado y crujiente.
+function crepeTextures() {
+  const S = LITE ? 512 : 1024;
+  const col = document.createElement('canvas'), bmp = document.createElement('canvas');
+  col.width = col.height = bmp.width = bmp.height = S;
+  const gc = col.getContext('2d'), gb = bmp.getContext('2d');
+  const ic = gc.createImageData(S, S), ib = gb.createImageData(S, S);
+  const nA = makeNoise(7), nB = makeNoise(131), nC = makeNoise(977);
+  const mix = (a, b, t) => a + (b - a) * t;
+  const pale = [230, 190, 120], gold = [206, 136, 58], brown = [146, 76, 28], dark = [96, 48, 18];
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const u = x / S, v = y / S;
+      const r = Math.hypot(u - 0.5, v - 0.5);                  // 0.5 = borde de la crepa
+      const tone = nA(u * 5, v * 5, 3);                         // variación suave de dorado
+      const wx = nC(u * 4, v * 4, 2) * 1.6;                     // deformación para que no se vea en rejilla
+      const big = nB(u * 9 + wx, v * 9 - wx, 3);                // zonas más o menos tostadas
+      const lace = nB(u * 30 + wx * 2, v * 30 - wx * 2, 3) * 0.6 + big * 0.4;
+      const rim = smooth(0.36, 0.5, r);
+      const spot = smooth(0.52 - rim * 0.07, 0.6 - rim * 0.07, lace);   // manchas tostadas
+      const ring = Math.max(0, 1 - Math.abs(lace - 0.57) * 30) * 0.6;   // contorno más oscuro
+      const pore = smooth(0.8, 0.86, nC(u * 70, v * 70, 2));    // poros finos de la masa
+      let t = clamp(tone * 1.3 - 0.25 + rim * 0.45);
+      let R0 = mix(pale[0], gold[0], t), G0 = mix(pale[1], gold[1], t), B0 = mix(pale[2], gold[2], t);
+      const sp = clamp(spot * (0.55 + 0.35 * tone) + rim * 0.2);
+      R0 = mix(R0, brown[0], sp); G0 = mix(G0, brown[1], sp); B0 = mix(B0, brown[2], sp);
+      const dk = clamp(ring + pore * 0.35);
+      R0 = mix(R0, dark[0], dk); G0 = mix(G0, dark[1], dk); B0 = mix(B0, dark[2], dk);
+      const i = (y * S + x) * 4;
+      ic.data[i] = R0; ic.data[i + 1] = G0; ic.data[i + 2] = B0; ic.data[i + 3] = 255;
+      // relieve: las manchas quedan un poco hundidas, los poros son puntitos
+      const h = clamp(0.62 + 0.22 * tone - spot * 0.25 - ring * 0.2 - pore * 0.3 + (nC(u * 160, v * 160, 1) - 0.5) * 0.12) * 255;
+      ib.data[i] = ib.data[i + 1] = ib.data[i + 2] = h; ib.data[i + 3] = 255;
+    }
+  }
+  gc.putImageData(ic, 0, 0); gb.putImageData(ib, 0, 0);
+  const map = new THREE.CanvasTexture(col), bump = new THREE.CanvasTexture(bmp);
+  map.colorSpace = THREE.SRGBColorSpace;
+  map.anisotropy = bump.anisotropy = LITE ? 2 : 4;
+  return { map, bump };
+}
+
+// azúcar glass: puntitos blancos en parches irregulares, más concentrados al centro
+const sugarTex = () =>
   canvasTex(LITE ? 512 : 1024, (g, s) => {
-    const k = s / 1024; // las manchas escalan con el tamaño de la textura
-    g.scale(k, k); s = 1024;
-    const grd = g.createRadialGradient(s / 2, s / 2, 40, s / 2, s / 2, s * 0.72);
-    grd.addColorStop(0, '#f6cd86');
-    grd.addColorStop(1, '#dc9a45');
-    g.fillStyle = grd;
+    g.fillStyle = '#000';
     g.fillRect(0, 0, s, s);
-    // manchas doradas tipo "encaje" de la plancha
-    for (let i = 0; i < 1600; i++) {
-      const r = 2 + Math.pow(Math.random(), 3) * 30;
-      g.beginPath();
-      g.arc(Math.random() * s, Math.random() * s, r, 0, Math.PI * 2);
-      g.fillStyle = `rgba(${150 + (Math.random() * 40) | 0},${72 + (Math.random() * 30) | 0},22,${rand(0.06, 0.3)})`;
-      g.fill();
+    const n = makeNoise(4242);
+    const k = s / 1024;
+    for (let i = 0; i < 16000 * k * k; i++) {
+      const u = Math.random(), v = Math.random();
+      const r = Math.hypot(u - 0.5, v - 0.5);
+      const dens = n(u * 6, v * 6, 3) * 1.6 - 0.55 - smooth(0.2, 0.44, r) * 0.9;
+      if (Math.random() > dens) continue;
+      g.fillStyle = `rgba(255,255,255,${rand(0.3, 0.85)})`;
+      const d = rand(0.8, 2) * k;
+      g.fillRect(u * s, v * s, d, d);
     }
-    for (let i = 0; i < 600; i++) {
-      g.beginPath();
-      g.arc(Math.random() * s, Math.random() * s, rand(1, 7), 0, Math.PI * 2);
-      g.fillStyle = `rgba(255,236,190,${rand(0.08, 0.25)})`;
-      g.fill();
-    }
-  });
+  }, false);
 
 const shadowTex = () =>
   canvasTex(256, (g, s) => {
@@ -96,13 +161,23 @@ const shadowTex = () =>
 
 const berrySkinTex = () =>
   canvasTex(256, (g, s) => {
-    g.fillStyle = '#d4203d';
+    // rojo profundo, más claro hacia la punta; semillas en pequeños hoyuelos
+    const grd = g.createLinearGradient(0, 0, 0, s);
+    grd.addColorStop(0, '#a50d24');
+    grd.addColorStop(0.6, '#c8142e');
+    grd.addColorStop(1, '#d8303f');
+    g.fillStyle = grd;
     g.fillRect(0, 0, s, s);
     for (let y = 8; y < s; y += 18) {
       for (let x = (y / 18) % 2 ? 4 : 13; x < s; x += 18) {
+        const jx = x + rand(-2, 2), jy = y + rand(-2, 2);
         g.beginPath();
-        g.ellipse(x, y, 1.8, 3, 0, 0, Math.PI * 2);
-        g.fillStyle = '#f7d25c';
+        g.ellipse(jx, jy, 3.2, 4.4, 0, 0, Math.PI * 2);
+        g.fillStyle = 'rgba(110,0,16,.45)';
+        g.fill();
+        g.beginPath();
+        g.ellipse(jx, jy - 0.6, 1.3, 2.3, 0, 0, Math.PI * 2);
+        g.fillStyle = Math.random() < 0.7 ? '#e8c24e' : '#c99a35';
         g.fill();
       }
     }
@@ -110,15 +185,33 @@ const berrySkinTex = () =>
 
 const berryCutTex = () => {
   const t = canvasTex(256, (g, s) => {
-    g.fillStyle = '#d81f3d';
+    // corte: borde rojo intenso, pulpa rosada y corazón blanquecino con fibras radiales
+    g.fillStyle = '#c3122b';
     g.fillRect(0, 0, s, s);
-    const grd = g.createRadialGradient(s / 2, s * 0.47, 6, s / 2, s * 0.5, s * 0.46);
-    grd.addColorStop(0, '#fff2f3');
-    grd.addColorStop(0.35, '#ffb3bd');
-    grd.addColorStop(0.75, '#ef4a64');
-    grd.addColorStop(1, '#d81f3d');
+    const cx = s / 2, cy = s * 0.5;
+    const grd = g.createRadialGradient(cx, cy, 4, cx, cy, s * 0.46);
+    grd.addColorStop(0, '#fbe6e2');
+    grd.addColorStop(0.22, '#f7c3c0');
+    grd.addColorStop(0.55, '#ea5a68');
+    grd.addColorStop(0.82, '#d21f37');
+    grd.addColorStop(1, '#c3122b');
     g.fillStyle = grd;
     g.fillRect(0, 0, s, s);
+    g.lineCap = 'round';
+    for (let i = 0; i < 28; i++) {
+      const a = (i / 28) * Math.PI * 2 + rand(-0.06, 0.06);
+      const r0 = s * 0.05, r1 = s * rand(0.3, 0.4);
+      g.beginPath();
+      g.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
+      g.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
+      g.strokeStyle = `rgba(255,235,232,${rand(0.18, 0.38)})`;
+      g.lineWidth = rand(1.5, 3);
+      g.stroke();
+    }
+    g.beginPath();
+    g.ellipse(cx, cy, s * 0.035, s * 0.16, 0, 0, Math.PI * 2);
+    g.fillStyle = 'rgba(255,246,242,.55)';
+    g.fill();
   });
   t.repeat.set(3.85, 3.57);
   t.offset.set(0.5, 0.536);
@@ -127,17 +220,37 @@ const berryCutTex = () => {
 
 const bananaTex = () =>
   canvasTex(256, (g, s) => {
-    const grd = g.createRadialGradient(s / 2, s / 2, 4, s / 2, s / 2, s / 2);
-    grd.addColorStop(0, '#fff4cf');
-    grd.addColorStop(0.8, '#f6e3a2');
-    grd.addColorStop(1, '#e8cf7e');
+    // rodaja: pulpa cremosa con fibras, corazón en estrella de 3 puntas y semillitas
+    const cx = s / 2, cy = s / 2;
+    const grd = g.createRadialGradient(cx, cy, 4, cx, cy, s / 2);
+    grd.addColorStop(0, '#ecd38a');
+    grd.addColorStop(0.3, '#f6e4a4');
+    grd.addColorStop(0.82, '#f0d78a');
+    grd.addColorStop(0.95, '#dfbd62');
+    grd.addColorStop(1, '#cfa94e');
     g.fillStyle = grd;
     g.fillRect(0, 0, s, s);
-    for (let i = 0; i < 9; i++) {
-      const a = (i / 9) * Math.PI * 2;
+    for (let i = 0; i < 60; i++) {
+      const a = Math.random() * Math.PI * 2, r0 = s * 0.14, r1 = s * rand(0.3, 0.46);
       g.beginPath();
-      g.arc(s / 2 + Math.cos(a) * 26, s / 2 + Math.sin(a) * 26, 3.5, 0, Math.PI * 2);
-      g.fillStyle = 'rgba(120,80,30,.55)';
+      g.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
+      g.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
+      g.strokeStyle = `rgba(214,186,110,${rand(0.08, 0.2)})`;
+      g.lineWidth = rand(1, 2.5);
+      g.stroke();
+    }
+    for (let k = 0; k < 3; k++) {
+      const a = (k / 3) * Math.PI * 2 - Math.PI / 2;
+      g.beginPath();
+      g.ellipse(cx + Math.cos(a) * 13, cy + Math.sin(a) * 13, 15, 4.5, a, 0, Math.PI * 2);
+      g.fillStyle = 'rgba(205,170,90,.45)';
+      g.fill();
+    }
+    for (let i = 0; i < 14; i++) {
+      const a = (i / 14) * Math.PI * 2 + rand(-0.1, 0.1), r = rand(14, 30);
+      g.beginPath();
+      g.arc(cx + Math.cos(a) * r, cy + Math.sin(a) * r, rand(1.6, 2.6), 0, Math.PI * 2);
+      g.fillStyle = `rgba(80,50,20,${rand(0.45, 0.75)})`;
       g.fill();
     }
   });
@@ -148,11 +261,34 @@ function surface(yBase, puff, radius = R) {
   g.rotateX(-Math.PI / 2);
   const p = g.attributes.position;
   for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i), z = p.getZ(i);
-    p.setY(i, yBase + wave(x, z) + puffAt(x, z, puff));
+    const k = edgeK(Math.atan2(-p.getZ(i), p.getX(i)));
+    const x = p.getX(i) * k, z = p.getZ(i) * k;
+    p.setXYZ(i, x, yBase + wave(x, z) + puffAt(x, z, puff), z);
   }
   g.computeVertexNormals();
   g.translate(-C, 0, C);
+  return g;
+}
+
+// hilo de salsa: grosor variable (como sale de la manga) y aplanado contra la crepa
+function sauceGeo(pts, radius) {
+  const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
+  const tub = seg(pts.length * 6, 60), rad = seg(8);
+  const g = new THREE.TubeGeometry(curve, tub, radius, rad, false);
+  const p = g.attributes.position, c = new THREE.Vector3(), o = new THREE.Vector3();
+  const ph = rand(0, 6);
+  for (let i = 0; i <= tub; i++) {
+    const t = i / tub;
+    curve.getPointAt(t, c);
+    const f = (0.62 + 0.38 * Math.sin(t * 23 + ph) * Math.sin(t * 7.3 + ph * 2) + 0.3) * smooth(0, 0.04, t) * (1 - smooth(0.95, 1, t) * 0.7);
+    for (let j = 0; j <= rad; j++) {
+      const idx = i * (rad + 1) + j;
+      o.fromBufferAttribute(p, idx).sub(c).multiplyScalar(f);
+      o.y *= 0.55;
+      p.setXYZ(idx, c.x + o.x, c.y + o.y, c.z + o.z);
+    }
+  }
+  g.computeVertexNormals();
   return g;
 }
 
@@ -165,7 +301,7 @@ function tubeAlong(fn, n, radius, yMid) {
   return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), seg(n * 1.4), radius, seg(10), false);
 }
 
-const arcFn = (radius) => (t) => [radius * Math.cos(t * Q), -radius * Math.sin(t * Q)];
+const arcFn = (radius) => (t) => { const r = radius * edgeK(t * Q); return [r * Math.cos(t * Q), -r * Math.sin(t * Q)]; };
 
 function crepeLayer(yBase, puff, mat) {
   const g = new THREE.Group();
@@ -175,7 +311,7 @@ function crepeLayer(yBase, puff, mat) {
   return g;
 }
 
-function strawberryPiece(skinMat, cutMat, leafMat) {
+function strawberryPiece(skinMat, cutMat) {
   const prof = [[0, -0.15], [0.05, -0.135], [0.095, -0.09], [0.12, -0.02], [0.118, 0.04], [0.09, 0.09], [0.045, 0.115], [0, 0.12]]
     .map(([x, y]) => new THREE.Vector2(x, y));
   const body = new THREE.Mesh(new THREE.LatheGeometry(prof, seg(20), 0, Math.PI), skinMat);
@@ -186,10 +322,8 @@ function strawberryPiece(skinMat, cutMat, leafMat) {
   const capGeo = new THREE.ShapeGeometry(shape, 10);
   capGeo.rotateY(-Math.PI / 2);
   const cap = new THREE.Mesh(capGeo, cutMat);
-  const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.035, 6), leafMat);
-  leaf.position.y = 0.125;
   const piece = new THREE.Group();
-  piece.add(body, cap, leaf);
+  piece.add(body, cap);                     // fresa sin hojas, como se sirve en la crepa
   piece.rotation.z = -Math.PI / 2;          // cara cortada hacia arriba
   const holder = new THREE.Group();
   holder.add(piece);
@@ -204,7 +338,9 @@ function creamGeo() {
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
     const th = Math.atan2(z, x) + y * 7;      // giro de manga pastelera
-    const r = Math.hypot(x, z) * (1 + 0.16 * Math.cos(8 * th));
+    // boquilla de estrella: crestas marcadas que se van afinando hacia la punta
+    const star = Math.pow(Math.abs(Math.cos(4 * th)), 0.45);
+    const r = Math.hypot(x, z) * (0.8 + (0.3 - y * 0.25) * star);
     p.setXYZ(i, r * Math.cos(th - y * 7), y, r * Math.sin(th - y * 7));
   }
   g.computeVertexNormals();
@@ -243,28 +379,32 @@ export async function createCrepeScene(canvas) {
   Object.assign(key.shadow.camera, { left: -3, right: 3, top: 3, bottom: -3, near: 0.5, far: 20 });
   key.shadow.bias = -0.0005;
   key.shadow.normalBias = 0.02;
+  key.shadow.radius = 3;                 // sombra más suave, como luz de ventana
   scene.add(key);
   const rim = new THREE.DirectionalLight(0xc9a6ff, 1.6);
   rim.position.set(-4, 2, -3);
   scene.add(rim);
 
   // materiales
-  const tex = crepeTex();
+  const { map: tex, bump: bumpTex } = crepeTextures();
   const crepeMat = mat({
-    map: tex, bumpMap: tex, bumpScale: 2.5, roughness: 0.72,
-    sheen: 0.4, sheenColor: new THREE.Color('#ffd9a0'), side: THREE.DoubleSide,
+    map: tex, bumpMap: bumpTex, bumpScale: 3, roughness: 0.66,
+    sheen: 0.35, sheenColor: new THREE.Color('#ffe2b0'), sheenRoughness: 0.6, side: THREE.DoubleSide,
+  });
+  const sugarMat = new THREE.MeshStandardMaterial({
+    color: '#ffffff', alphaMap: sugarTex(), transparent: true, depthWrite: false, roughness: 0.9,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
   });
   const foldMat = crepeMat.clone();
   foldMat.transparent = true;
   const fillingMat = mat({ color: '#4b2415', roughness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.25, side: THREE.DoubleSide });
   const chocoMat = mat({ color: '#2e140b', roughness: 0.18, clearcoat: 1, clearcoatRoughness: 0.08 });
   const plateMat = mat({ color: '#fffaf5', roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.1, side: THREE.DoubleSide });
-  const skinMat = mat({ map: berrySkinTex(), roughness: 0.35, clearcoat: 0.6, side: THREE.DoubleSide });
-  const cutMat = mat({ map: berryCutTex(), roughness: 0.4, clearcoat: 0.5, side: THREE.DoubleSide });
-  const leafMat = new THREE.MeshStandardMaterial({ color: '#3f8f3a', roughness: 0.6 });
-  const bananaMat = new THREE.MeshStandardMaterial({ map: bananaTex(), roughness: 0.55 });
+  const skinMat = mat({ map: berrySkinTex(), roughness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.15, side: THREE.DoubleSide });
+  const cutMat = mat({ map: berryCutTex(), roughness: 0.25, clearcoat: 0.9, clearcoatRoughness: 0.12, side: THREE.DoubleSide });
+  const bananaMat = mat({ map: bananaTex(), roughness: 0.42, clearcoat: 0.35, clearcoatRoughness: 0.3 });
   // la crema no necesita sheen: con Standard se ve igual y cuesta mucho menos
-  const creamMat = new THREE.MeshStandardMaterial({ color: '#fffaf2', roughness: 0.6 });
+  const creamMat = new THREE.MeshStandardMaterial({ color: '#fbf3e4', roughness: 0.5 });
   const sprinkleMat = new THREE.MeshStandardMaterial({ roughness: 0.4 });
 
   const model = new THREE.Group();
@@ -300,14 +440,19 @@ export async function createCrepeScene(canvas) {
   filling.add(new THREE.Mesh(tubeAlong(arcFn(R * 0.985), 90, 0.036, 0.065), fillingMat));
   addPart('filling', 'Relleno cremoso', 0.05, 0.065, filling);
 
-  addPart('top', 'Doblada a mano', 0.5, 0.15, crepeLayer(TOP, 0.07, crepeMat));
+  const topLayer = crepeLayer(TOP, 0.07, crepeMat);
+  const sugar = new THREE.Mesh(surface(TOP + T + 0.004, 0.07, R * 0.985), sugarMat);
+  sugar.renderOrder = 1;
+  topLayer.add(sugar);
+  addPart('top', 'Doblada a mano', 0.5, 0.15, topLayer);
 
   // dobleces (cierran el sándwich en los bordes rectos)
   const folds = new THREE.Group();
   const fr = (TOP + 2 * T) / 2;
-  folds.add(new THREE.Mesh(tubeAlong((t) => [t * R, 0], 40, fr, TOP / 2), foldMat));
-  folds.add(new THREE.Mesh(tubeAlong((t) => [0, -t * R], 40, fr, TOP / 2), foldMat));
-  for (const [x, z] of [[0, 0], [R, 0], [0, -R]]) {
+  const e0 = R * edgeK(0), e1 = R * edgeK(Q);
+  folds.add(new THREE.Mesh(tubeAlong((t) => [t * e0, 0], 40, fr, TOP / 2), foldMat));
+  folds.add(new THREE.Mesh(tubeAlong((t) => [0, -t * e1], 40, fr, TOP / 2), foldMat));
+  for (const [x, z] of [[0, 0], [e0, 0], [0, -e1]]) {
     const s = new THREE.Mesh(new THREE.SphereGeometry(fr, 20, 14), foldMat);
     s.position.set(x - C, TOP / 2 + wave(x, z), z + C);
     folds.add(s);
@@ -328,7 +473,7 @@ export async function createCrepeScene(canvas) {
   // fresas
   const berries = new THREE.Group();
   for (const [x, z] of [[0.45, -0.55], [0.95, -0.75], [0.6, -1.05], [1.15, -0.45], [0.3, -0.3], [0.8, -0.2]]) {
-    const s = strawberryPiece(skinMat, cutMat, leafMat);
+    const s = strawberryPiece(skinMat, cutMat);
     s.position.set(x - C, topH(x, z) + 0.085, z + C);
     s.rotation.set(rand(-0.25, 0.25), rand(0, Math.PI * 2), 0);
     s.scale.setScalar(rand(0.9, 1.15));
@@ -350,16 +495,23 @@ export async function createCrepeScene(canvas) {
 
   // chocolate en hilos
   const drizzle = new THREE.Group();
+  // zigzag de manga: vaivén con curvas suaves y algo de pulso, siguiendo el relieve de la crepa
   for (let k = 0; k < 2; k++) {
     const pts = [];
-    const n = 11;
+    const n = 7 + k;
+    const r0 = 0.26 + k * 0.08, r1 = 0.88 - k * 0.05;
     for (let i = 0; i <= n; i++) {
-      const th = i % 2 ? Q - 0.18 : 0.18;
-      const r = R * (0.28 + (0.62 * i) / n) + k * 0.12;
-      const x = r * Math.cos(th + k * 0.06), z = -r * Math.sin(th + k * 0.06);
-      pts.push(new THREE.Vector3(x - C, topH(x, z) + 0.025, z + C));
+      for (let sub = 0; sub < 6; sub++) {
+        if (i === n && sub > 0) break;
+        const a = (i + sub / 6);
+        const side = Math.cos(a * Math.PI) * 0.5 + 0.5;             // 1 → 0 → 1 ...
+        const th = 0.2 + side * (Q - 0.4) + Math.sin(a * 2.1 + k) * 0.05;
+        const r = R * (r0 + ((r1 - r0) * a) / n + Math.sin(a * 3.7 + k * 2) * 0.015);
+        const x = r * Math.cos(th), z = -r * Math.sin(th);
+        pts.push(new THREE.Vector3(x - C, topH(x, z) + 0.024, z + C));
+      }
     }
-    drizzle.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.2), seg(160, 80), 0.02, seg(8), false), chocoMat));
+    drizzle.add(new THREE.Mesh(sauceGeo(pts, 0.03 - k * 0.005), chocoMat));
   }
   addPart('drizzle', 'Chocolate', 1.95, 0.2, drizzle);
 
@@ -388,6 +540,7 @@ export async function createCrepeScene(canvas) {
       o.receiveShadow = receivers.has(p.name);
     }));
     folds.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+    sugar.castShadow = sugar.receiveShadow = false;
   }
 
   /* ---------- estado controlado desde el scroll ---------- */
