@@ -9,7 +9,7 @@ const CONFIG = {
   linktree: 'https://linktr.ee/crepeloverssv',
   events: 'https://wa.me/50376014395?text=' + encodeURIComponent('¡Hola Crêpe Lovers! Quiero información para un evento 💜'),
   ubereats: 'https://www.ubereats.com/sv',
-  pedidosya: 'https://www.pedidosya.com/', // cambiar por el link directo de la tienda Crêpe Lovers en PedidosYa
+  pedidosya: 'https://www.pedidosyasv.com.sv/restaurantes/san-salvador/crepe-lover--centro-historico-ddfc0f74-4c3c-4f6a-a4ae-4da1efd4cbd6-menu',
 };
 
 const FILLINGS = [
