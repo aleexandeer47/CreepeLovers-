@@ -13,6 +13,7 @@ npm run dev
 
 ## Editar contenido
 
-- Links, menú, rellenos y toppings: `js/main.js` (`CONFIG`, `MENU`, `FILLINGS`, `TOPPINGS`)
+- Links, rellenos y toppings del armador: `js/main.js` (`CONFIG`, `FILLINGS`, `TOPPINGS`)
+- Menú completo, destacados y promos: `js/menu-data.js` (`FEATURED`, `CARTA`, `COMBIFICA`, `DAILY`), fotos en `assets/menu/`
 - Colores y tipografía: variables en `:root` de `css/styles.css`
 - Escena 3D: `js/scene.js`

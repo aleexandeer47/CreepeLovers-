@@ -1,5 +1,6 @@
 // Crêpe Lovers — interacciones, scroll y armador
 import { createCrepeScene } from './scene.js';
+import { FEATURED, CARTA, COMBIFICA, DAILY, FINE_PRINT, BRANCH_NOTE } from './menu-data.js';
 
 /* ======= Datos editables ======= */
 const CONFIG = {
@@ -8,29 +9,20 @@ const CONFIG = {
   linktree: 'https://linktr.ee/crepeloverssv',
   events: 'https://wa.me/50376014395?text=' + encodeURIComponent('¡Hola Crêpe Lovers! Quiero información para un evento 💜'),
   ubereats: 'https://www.ubereats.com/sv',
-  pedidosya: 'https://www.pedidosya.com.sv/',
+  pedidosya: 'https://www.pedidosya.com/', // cambiar por el link directo de la tienda Crêpe Lovers en PedidosYa
 };
-
-const MENU = [
-  { cat: 'Dulce', name: 'Banana Lovers', desc: 'Plátano, fresas, Nutella y hilos de chocolate.', bg: '#f4edfc', art: { kind: 'plate', fill: '#4b2415', tops: ['banana', 'berry', 'drizzle'] } },
-  { cat: 'Dulce', name: 'Nutella & Fresa', desc: 'El clásico que nunca falla: Nutella generosa y fresas frescas.', bg: '#fde7dc', art: { kind: 'cone', fill: '#4b2415', cone: '#f3b3c6', tops: ['berry', 'drizzle'] } },
-  { cat: 'Dulce', name: 'Cremosas', tag: 'Nuevo', desc: 'Nuestra nueva línea cremosa: 5 nuevos motivos para volver.', bg: '#e8dbf8', art: { kind: 'cone', fill: '#f2ead9', cone: '#c9a6ea', tops: ['cream', 'drizzle'] } },
-  { cat: 'Dulce', name: 'Dulce de Leche', desc: 'Dulce de leche, nuez tostada y un toque de canela.', bg: '#fff1e0', art: { kind: 'plate', fill: '#b0692b', tops: ['nut', 'drizzle'] } },
-  { cat: 'Salada', name: 'Royale Margarita', tag: 'Nuevo', desc: 'Salsa pomodoro, tomates cherry, queso y ensalada fresca.', bg: '#ffe3ea', art: { kind: 'savory', fill: '#c8402e', tops: ['tomato', 'greens'] } },
-  { cat: 'Salada', name: 'Lomito Crêpe', desc: 'Lomito jugoso, aguacate, salsa de queso y mezcla de lechugas.', bg: '#fbe9d6', art: { kind: 'savory', fill: '#f0b63f', tops: ['meat', 'greens', 'tomato'] } },
-  { cat: 'Guilt free', name: 'Guilt Free', desc: 'Para disfrutar sin culpa: opciones ligeras, mismo amor.', bg: '#dcefe2', art: { kind: 'plate', fill: '#b3172f', tops: ['berry', 'berry', 'leaf'] } },
-];
 
 const FILLINGS = [
   { id: 'nutella', label: 'Nutella', color: '#4b2415' },
   { id: 'dulce', label: 'Dulce de leche', color: '#b0692b' },
-  { id: 'queso', label: 'Queso crema', color: '#f2ead9' },
+  { id: 'pistacho', label: 'Crema de pistacho', color: '#a9b45a' },
+  { id: 'biscoff', label: 'Crema de Biscoff', color: '#c47a3a' },
   { id: 'fresa', label: 'Mermelada de fresa', color: '#b3172f' },
 ];
 const TOPPINGS = [
   { id: 'strawberry', label: 'Fresas', color: '#d4203d', on: true },
-  { id: 'banana', label: 'Plátano', color: '#f6e3a2', on: true },
-  { id: 'cream', label: 'Crema batida', color: '#fffaf2', on: true },
+  { id: 'banana', label: 'Banano', color: '#f6e3a2', on: true },
+  { id: 'cream', label: 'Chantilly', color: '#fffaf2', on: true },
   { id: 'drizzle', label: 'Hilos de chocolate', color: '#2e140b', on: true },
   { id: 'sprinkles', label: 'Chispas', color: '#c9a6ea', on: true },
 ];
@@ -111,71 +103,95 @@ if (ctaTitle) {
   splitChars(ctaTitle.firstChild);
 }
 
-/* ======= ilustraciones SVG del menú ======= */
-function topsSVG(tops) {
-  const spots = [[78, 98], [104, 90], [128, 100], [92, 110], [118, 114], [140, 92]];
-  let out = '';
-  tops.forEach((t, ti) => {
-    spots.forEach(([x, y], i) => {
-      if ((i + ti) % 2) return;
-      const dx = x + ti * 3, dy = y - ti * 2;
-      if (t === 'berry') out += `<path d="M${dx} ${dy - 9} q9 2 8 10 q-3 8 -8 9 q-5 -1 -8 -9 q-1 -8 8 -10z" fill="#d4203d"/><path d="M${dx} ${dy - 5} q4 1 3 6 q-1 4 -3 5 q-2-1-3-5 q-1-5 3-6z" fill="#ffc2cb"/>`;
-      if (t === 'banana') out += `<circle cx="${dx}" cy="${dy}" r="9" fill="#f6e3a2" stroke="#e5c96f" stroke-width="2"/><circle cx="${dx}" cy="${dy}" r="2.5" fill="#c4a35a"/>`;
-      if (t === 'cream') out += `<path d="M${dx - 11} ${dy + 4} q11 -24 22 0 z" fill="#fffaf2" stroke="#efe4d6" stroke-width="1.5"/>`;
-      if (t === 'nut') out += `<ellipse cx="${dx}" cy="${dy}" rx="6" ry="4" fill="#8a5a33" transform="rotate(${i * 30} ${dx} ${dy})"/>`;
-      if (t === 'tomato') out += `<circle cx="${dx}" cy="${dy}" r="7" fill="#e4472f"/><circle cx="${dx - 2}" cy="${dy - 2}" r="2" fill="#ff9f86"/>`;
-      if (t === 'meat') out += `<rect x="${dx - 9}" y="${dy - 4}" width="18" height="8" rx="4" fill="#6b3420" transform="rotate(${i * 25} ${dx} ${dy})"/>`;
-      if (t === 'leaf' || t === 'greens') out += `<ellipse cx="${dx}" cy="${dy}" rx="8" ry="4" fill="#5a9a4e" transform="rotate(${i * 40} ${dx} ${dy})"/>`;
-    });
-    if (t === 'drizzle') out += `<path d="M62 96 L84 86 L80 106 L106 90 L102 112 L130 94 L128 112 L150 98" fill="none" stroke="#2e140b" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>`;
-  });
-  return out;
-}
-function crepeSVG({ kind, fill, cone = '#f3b3c6', tops }) {
-  const gold = `<defs><linearGradient id="g${Math.random().toString(36).slice(2, 7)}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6cd86"/><stop offset="1" stop-color="#d9953a"/></linearGradient></defs>`;
-  const gid = gold.match(/id="(\w+)"/)[1];
-  if (kind === 'cone') {
-    return `<svg viewBox="0 0 200 220" aria-hidden="true">${gold}
-      <path d="M48 82 Q100 18 152 82 Q100 104 48 82Z" fill="url(#${gid})"/>
-      <path d="M52 84 Q100 98 148 84" fill="none" stroke="${fill}" stroke-width="9" stroke-linecap="round"/>
-      <g transform="translate(0,-22)">${topsSVG(tops)}</g>
-      <path d="M42 86 L100 212 L158 86 Q100 112 42 86Z" fill="${cone}"/>
-      <path d="M42 86 Q100 112 158 86" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
-      <path d="M100 168 l-14 -18 c-6 -8 4 -18 14 -9 c10 -9 20 1 14 9z" fill="#b1203f"/>
-    </svg>`;
-  }
-  const plate = `<ellipse cx="100" cy="128" rx="94" ry="44" fill="#ffffff"/><ellipse cx="100" cy="128" rx="70" ry="31" fill="none" stroke="#efe6f7" stroke-width="2"/>`;
-  const side = kind === 'savory'
-    ? `<g>${[[150, 118], [160, 128], [146, 132], [158, 108], [168, 120]].map(([x, y], i) => `<ellipse cx="${x}" cy="${y}" rx="11" ry="5" fill="${i % 2 ? '#5a9a4e' : '#7fb85f'}" transform="rotate(${i * 50} ${x} ${y})"/>`).join('')}<circle cx="152" cy="122" r="5" fill="#e4472f"/><circle cx="164" cy="112" r="4" fill="#f08a2c"/></g>`
-    : '';
-  return `<svg viewBox="0 0 200 200" aria-hidden="true">${gold}
-    <ellipse cx="100" cy="140" rx="92" ry="40" fill="rgba(46,31,77,.12)"/>
-    ${plate}${side}
-    <path d="M38 126 Q60 76 118 74 Q140 76 142 98 Q100 140 38 126Z" fill="${fill}"/>
-    <path d="M34 122 Q56 70 116 68 Q136 70 138 92 Q98 134 34 122Z" fill="url(#${gid})"/>
-    <path d="M36 122 Q98 132 138 92" fill="none" stroke="${fill}" stroke-width="5" stroke-linecap="round"/>
-    <g transform="translate(-14,-4) scale(0.92)">${topsSVG(tops)}</g>
-  </svg>`;
-}
-
+/* ======= destacados (carrusel horizontal) ======= */
 const track = $('.menu__track');
-MENU.forEach((m, i) => {
+FEATURED.forEach((m, i) => {
   const a = document.createElement('article');
   a.className = 'card tilt';
   a.style.setProperty('--bg', m.bg);
   a.innerHTML = `
-    <div class="card__top"><span>${String(i + 1).padStart(2, '0')}</span><span class="card__tag ${m.tag ? 'card__tag--new' : ''}">${m.tag || m.cat}</span></div>
-    <div class="card__art">${crepeSVG(m.art)}</div>
-    <h3>${m.name}</h3>
+    <div class="card__top"><span>${String(i + 1).padStart(2, '0')}</span><span class="card__tag">${m.cat}</span></div>
+    <div class="card__art"><img src="${m.img}" alt="${m.name}" loading="lazy" decoding="async"></div>
+    <div class="card__row"><h3>${m.name}</h3><span class="card__price">${m.price}</span></div>
     <p>${m.desc}</p>
     <a class="card__cta" href="${CONFIG.dm}" target="_blank" rel="noopener">Pedir esta</a>`;
   track.appendChild(a);
 });
 const end = document.createElement('article');
 end.className = 'card card--end tilt';
-end.innerHTML = `<h3>¿Quieres ver todo el menú?</h3><p>Crêpe amour, promos de la semana, horarios y restaurantes en un solo lugar.</p><a class="btn btn--light" href="${CONFIG.linktree}" target="_blank" rel="noopener">Ver menú completo</a>`;
+end.innerHTML = `<h3>¿Quieres ver todo el menú?</h3><p>Más de 100 opciones: saladas, dulces, healthy, bebidas y las promos de la semana.</p><a class="btn btn--light" href="#carta">Ver carta completa</a>`;
 track.appendChild(end);
-$('.menu__count .tot').textContent = String(MENU.length).padStart(2, '0');
+$('.menu__count .tot').textContent = String(FEATURED.length).padStart(2, '0');
+
+/* ======= carta completa ======= */
+const money = (p) => `<span class="price">${p}</span>`;
+function itemHTML(it) {
+  const vars = it.v ? `<ul class="dish__vars">${it.v.map(([l, p]) => `<li>${l} <b>${p}</b></li>`).join('')}</ul>` : '';
+  return `<li class="dish">
+    <div class="dish__head"><h4>${it.n}</h4><i aria-hidden="true"></i>${it.p ? money(it.p) : ''}</div>
+    ${it.d ? `<p>${it.d}</p>` : ''}${vars}${it.info ? `<p class="dish__info">${it.info}</p>` : ''}
+  </li>`;
+}
+function sectionHTML(s) {
+  const extras = s.extras ? `<div class="menu-block__extras"><h5>${s.extras.title}</h5><ul>${s.extras.list.map(([l, p]) => `<li>${l} <b>${p}</b></li>`).join('')}</ul></div>` : '';
+  return `<section class="menu-block">
+    <h3>${s.title}</h3>${s.note ? `<p class="menu-block__note">${s.note}</p>` : ''}
+    <ul class="dishes">${s.items.map(itemHTML).join('')}</ul>${extras}
+  </section>`;
+}
+function promosHTML() {
+  const today = new Date().getDay(); // 1 = lunes … 5 = viernes
+  const days = DAILY.days.map(([d, sal, dul], i) => `<li class="${i + 1 === today ? 'is-today' : ''}">
+      <span class="day">${d}${i + 1 === today ? ' <em>hoy</em>' : ''}</span><span><b>Salada:</b> ${sal}</span><span><b>Dulce:</b> ${dul}</span></li>`).join('');
+  return `<div class="promos">
+    <article class="promo promo--combi">
+      <p class="promo__kicker">${COMBIFICA.when}</p>
+      <div class="promo__title"><h3>Combifica</h3><span class="promo__badge"><small>desde</small>${COMBIFICA.price}</span></div>
+      <p class="promo__lead">${COMBIFICA.includes}</p>
+      <ul class="promo__list">${COMBIFICA.plates.map(([t, p, d]) => `<li><div class="dish__head"><h4>${t}</h4><i aria-hidden="true"></i>${money(p)}</div><p>${d}</p></li>`).join('')}</ul>
+      <p><b>Complemento:</b> ${COMBIFICA.side}</p>
+      <p><b>Bebida:</b> ${COMBIFICA.drink}</p>
+      <p class="promo__fine">${COMBIFICA.fine}</p>
+    </article>
+    <article class="promo promo--daily">
+      <p class="promo__kicker">Escoge entre salado y dulce</p>
+      <div class="promo__title"><h3>Daily Crêpe</h3><span class="promo__badge"><small>c/u</small>${DAILY.price}</span></div>
+      <ul class="daily">${days}</ul>
+      <p>${DAILY.match}</p>
+      <p class="promo__fine">${DAILY.fine}</p>
+    </article>
+  </div>`;
+}
+const tabs = $('.carta__tabs'), panel = $('.carta__panel');
+tabs.innerHTML = CARTA.map((g, i) => `<button class="carta__tab" role="tab" id="tab-${g.id}" aria-controls="carta-panel" aria-selected="${i === 0}" data-id="${g.id}">
+  <img src="${g.img}" alt="" loading="lazy"><span>${g.label}</span></button>`).join('');
+$('.carta__fine').innerHTML = `<p><b>${BRANCH_NOTE}</b></p>` + FINE_PRINT.map((t) => `<p>${t}</p>`).join('');
+function showGroup(id, animate = true) {
+  const g = CARTA.find((x) => x.id === id);
+  $$('.carta__tab', tabs).forEach((b) => b.setAttribute('aria-selected', String(b.dataset.id === id)));
+  panel.setAttribute('aria-labelledby', 'tab-' + id);
+  panel.innerHTML = g.promos ? promosHTML() : `<div class="menu-grid">${g.sections.map(sectionHTML).join('')}</div>`;
+  if (window.ScrollTrigger) ScrollTrigger.refresh();
+  if (animate && window.gsap && !reduceMotion) gsap.from(panel.querySelectorAll('.menu-block, .promo'), { y: 30, opacity: 0, duration: 0.6, stagger: 0.05, ease: 'power3.out' });
+}
+tabs.addEventListener('click', (e) => {
+  const b = e.target.closest('.carta__tab');
+  if (!b || b.getAttribute('aria-selected') === 'true') return;
+  showGroup(b.dataset.id);
+  const top = $('#carta').getBoundingClientRect().top;
+  if (top < -10) (lenis ? lenis.scrollTo('#carta', { duration: 1 }) : $('#carta').scrollIntoView());
+});
+tabs.addEventListener('keydown', (e) => {
+  if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+  const list = $$('.carta__tab', tabs), i = list.indexOf(document.activeElement);
+  const next = list[(i + (e.key === 'ArrowRight' ? 1 : -1) + list.length) % list.length];
+  next.focus(); next.click();
+});
+showGroup(CARTA[0].id, false);
+end.querySelector('a').addEventListener('click', (e) => {
+  e.preventDefault();
+  if (lenis) lenis.scrollTo('#carta', { duration: 1.4 }); else $('#carta').scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth' });
+});
 
 /* ======= armador ======= */
 const fillBox = $('#fillings'), topBox = $('#toppings');
@@ -307,15 +323,15 @@ const menuTween = gsap.to(track, {
   scrollTrigger: {
     trigger: '#menu', start: 'top top', end: () => '+=' + dist(), pin: '.menu__pin', scrub: true, invalidateOnRefresh: true,
     onUpdate(self) {
-      const n = MENU.length + 1;
-      $('.menu__count .cur').textContent = String(Math.min(MENU.length, Math.round(self.progress * (n - 1)) + 1)).padStart(2, '0');
+      const n = FEATURED.length + 1;
+      $('.menu__count .cur').textContent = String(Math.min(FEATURED.length, Math.round(self.progress * (n - 1)) + 1)).padStart(2, '0');
       $('.menu__bar span').style.transform = `scaleX(${self.progress})`;
     },
   },
 });
-$$('.card__art', track).forEach((art) => {
-  gsap.fromTo(art, { rotate: -10, xPercent: 18 }, {
-    rotate: 8, xPercent: -18, ease: 'none',
+$$('.card__art img', track).forEach((art) => {
+  gsap.fromTo(art, { xPercent: 9 }, {
+    xPercent: -9, ease: 'none',
     scrollTrigger: { trigger: art.closest('.card'), containerAnimation: menuTween, start: 'left right', end: 'right left', scrub: true },
   });
 });
