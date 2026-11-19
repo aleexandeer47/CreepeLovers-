@@ -13,6 +13,21 @@ const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) 
 const smooth = (a, b, v) => { const t = clamp((v - a) / (b - a)); return t * t * (3 - 2 * t); };
 const rand = (a, b) => a + Math.random() * (b - a);
 
+// Nivel de calidad: en celular / pantallas táctiles usamos materiales y geometrías más livianas
+const LITE = matchMedia('(max-width: 860px), (pointer: coarse)').matches;
+const SEG = LITE ? 0.6 : 1;                          // factor de segmentos de las geometrías
+const seg = (n, min = 6) => Math.max(min, Math.round(n * SEG));
+
+// Physical (clearcoat/sheen) en escritorio; Standard en celular (mucho más barato de pintar)
+const PHYS_ONLY = ['clearcoat', 'clearcoatRoughness', 'sheen', 'sheenColor', 'sheenRoughness'];
+function mat(params) {
+  if (!LITE) return new THREE.MeshPhysicalMaterial(params);
+  const p = { ...params };
+  PHYS_ONLY.forEach((k) => delete p[k]);
+  if (params.clearcoat) p.roughness = Math.max(0.15, (p.roughness ?? 0.5) * 0.8);
+  return new THREE.MeshStandardMaterial(p);
+}
+
 // ondulación orgánica compartida por todas las capas (para que encajen)
 const wave = (x, z) =>
   0.03 * Math.sin(x * 3.1 + z * 1.7) * Math.cos(z * 2.3 - x * 0.7) +
@@ -40,12 +55,14 @@ function canvasTex(size, draw, srgb = true) {
   draw(c.getContext('2d'), size);
   const t = new THREE.CanvasTexture(c);
   if (srgb) t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 8;
+  t.anisotropy = LITE ? 2 : 4;
   return t;
 }
 
 const crepeTex = () =>
-  canvasTex(1024, (g, s) => {
+  canvasTex(LITE ? 512 : 1024, (g, s) => {
+    const k = s / 1024; // las manchas escalan con el tamaño de la textura
+    g.scale(k, k); s = 1024;
     const grd = g.createRadialGradient(s / 2, s / 2, 40, s / 2, s / 2, s * 0.72);
     grd.addColorStop(0, '#f6cd86');
     grd.addColorStop(1, '#dc9a45');
@@ -127,7 +144,7 @@ const bananaTex = () =>
 
 /* ---------- geometrías ---------- */
 function surface(yBase, puff, radius = R) {
-  const g = new THREE.RingGeometry(0.0001, radius, 80, 30, 0, Q);
+  const g = new THREE.RingGeometry(0.0001, radius, seg(80), seg(30), 0, Q);
   g.rotateX(-Math.PI / 2);
   const p = g.attributes.position;
   for (let i = 0; i < p.count; i++) {
@@ -145,7 +162,7 @@ function tubeAlong(fn, n, radius, yMid) {
     const [x, z] = fn(i / n);
     pts.push(new THREE.Vector3(x - C, yMid + wave(x, z), z + C));
   }
-  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), n * 2, radius, 12, false);
+  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), seg(n * 1.4), radius, seg(10), false);
 }
 
 const arcFn = (radius) => (t) => [radius * Math.cos(t * Q), -radius * Math.sin(t * Q)];
@@ -161,7 +178,7 @@ function crepeLayer(yBase, puff, mat) {
 function strawberryPiece(skinMat, cutMat, leafMat) {
   const prof = [[0, -0.15], [0.05, -0.135], [0.095, -0.09], [0.12, -0.02], [0.118, 0.04], [0.09, 0.09], [0.045, 0.115], [0, 0.12]]
     .map(([x, y]) => new THREE.Vector2(x, y));
-  const body = new THREE.Mesh(new THREE.LatheGeometry(prof, 28, 0, Math.PI), skinMat);
+  const body = new THREE.Mesh(new THREE.LatheGeometry(prof, seg(20), 0, Math.PI), skinMat);
   const shape = new THREE.Shape();
   shape.moveTo(prof[0].x, prof[0].y);
   prof.forEach((p) => shape.lineTo(p.x, p.y));
@@ -182,7 +199,7 @@ function strawberryPiece(skinMat, cutMat, leafMat) {
 function creamGeo() {
   const prof = [[0.0, 0], [0.2, 0], [0.225, 0.03], [0.22, 0.07], [0.19, 0.12], [0.15, 0.17], [0.11, 0.22], [0.07, 0.27], [0.035, 0.31], [0, 0.34]]
     .map(([x, y]) => new THREE.Vector2(x, y));
-  const g = new THREE.LatheGeometry(prof, 96);
+  const g = new THREE.LatheGeometry(prof, seg(64, 32));
   const p = g.attributes.position;
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
@@ -196,13 +213,19 @@ function creamGeo() {
 
 /* ---------- escena ---------- */
 export async function createCrepeScene(canvas) {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  // Resolución: la escena cubre toda la pantalla, así que cada décima de pixel ratio cuenta.
+  // Empezamos en 1.5 (escritorio) / 1.25 (celular) y la calidad se ajusta sola si hay tirones.
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: !LITE, alpha: true, powerPreference: 'high-performance' });
+  const maxPR = Math.min(window.devicePixelRatio, LITE ? 1.25 : 1.5);
+  const minPR = Math.min(window.devicePixelRatio, LITE ? 0.75 : 1);
+  let pixelRatio = maxPR;
+  renderer.setPixelRatio(pixelRatio);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.02;
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  // Sombras reales solo en escritorio; en celular queda la sombra de contacto pintada bajo el plato
+  renderer.shadowMap.enabled = !LITE;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
 
   const scene = new THREE.Scene();
   const pmrem = new THREE.PMREMGenerator(renderer);
@@ -215,8 +238,8 @@ export async function createCrepeScene(canvas) {
   scene.add(new THREE.HemisphereLight(0xfff4ec, 0x5a3d91, 0.5));
   const key = new THREE.DirectionalLight(0xfff0dd, 2.3);
   key.position.set(3, 5, 4);
-  key.castShadow = true;
-  key.shadow.mapSize.set(2048, 2048);
+  key.castShadow = !LITE;
+  key.shadow.mapSize.set(1024, 1024);
   Object.assign(key.shadow.camera, { left: -3, right: 3, top: 3, bottom: -3, near: 0.5, far: 20 });
   key.shadow.bias = -0.0005;
   key.shadow.normalBias = 0.02;
@@ -227,20 +250,21 @@ export async function createCrepeScene(canvas) {
 
   // materiales
   const tex = crepeTex();
-  const crepeMat = new THREE.MeshPhysicalMaterial({
+  const crepeMat = mat({
     map: tex, bumpMap: tex, bumpScale: 2.5, roughness: 0.72,
     sheen: 0.4, sheenColor: new THREE.Color('#ffd9a0'), side: THREE.DoubleSide,
   });
   const foldMat = crepeMat.clone();
   foldMat.transparent = true;
-  const fillingMat = new THREE.MeshPhysicalMaterial({ color: '#4b2415', roughness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.25, side: THREE.DoubleSide });
-  const chocoMat = new THREE.MeshPhysicalMaterial({ color: '#2e140b', roughness: 0.18, clearcoat: 1, clearcoatRoughness: 0.08 });
-  const plateMat = new THREE.MeshPhysicalMaterial({ color: '#fffaf5', roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.1, side: THREE.DoubleSide });
-  const skinMat = new THREE.MeshPhysicalMaterial({ map: berrySkinTex(), roughness: 0.35, clearcoat: 0.6, side: THREE.DoubleSide });
-  const cutMat = new THREE.MeshPhysicalMaterial({ map: berryCutTex(), roughness: 0.4, clearcoat: 0.5, side: THREE.DoubleSide });
+  const fillingMat = mat({ color: '#4b2415', roughness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.25, side: THREE.DoubleSide });
+  const chocoMat = mat({ color: '#2e140b', roughness: 0.18, clearcoat: 1, clearcoatRoughness: 0.08 });
+  const plateMat = mat({ color: '#fffaf5', roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.1, side: THREE.DoubleSide });
+  const skinMat = mat({ map: berrySkinTex(), roughness: 0.35, clearcoat: 0.6, side: THREE.DoubleSide });
+  const cutMat = mat({ map: berryCutTex(), roughness: 0.4, clearcoat: 0.5, side: THREE.DoubleSide });
   const leafMat = new THREE.MeshStandardMaterial({ color: '#3f8f3a', roughness: 0.6 });
   const bananaMat = new THREE.MeshStandardMaterial({ map: bananaTex(), roughness: 0.55 });
-  const creamMat = new THREE.MeshPhysicalMaterial({ color: '#fffaf2', roughness: 0.55, sheen: 1, sheenColor: new THREE.Color('#ffffff'), sheenRoughness: 0.6 });
+  // la crema no necesita sheen: con Standard se ve igual y cuesta mucho menos
+  const creamMat = new THREE.MeshStandardMaterial({ color: '#fffaf2', roughness: 0.6 });
   const sprinkleMat = new THREE.MeshStandardMaterial({ roughness: 0.4 });
 
   const model = new THREE.Group();
@@ -258,7 +282,7 @@ export async function createCrepeScene(canvas) {
   const plate = new THREE.Group();
   const plateProf = [[0, 0], [1.2, 0], [1.38, 0.04], [1.58, 0.12], [1.64, 0.16], [1.6, 0.172], [1.5, 0.135], [1.22, 0.05], [0.95, 0.034], [0, 0.034]]
     .map(([x, y]) => new THREE.Vector2(x, y));
-  const plateMesh = new THREE.Mesh(new THREE.LatheGeometry(plateProf, 96), plateMat);
+  const plateMesh = new THREE.Mesh(new THREE.LatheGeometry(plateProf, seg(72, 40)), plateMat);
   plateMesh.position.y = -0.135;
   plateMesh.receiveShadow = true;
   const blob = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 4.2), new THREE.MeshBasicMaterial({ map: shadowTex(), transparent: true, depthWrite: false }));
@@ -267,7 +291,7 @@ export async function createCrepeScene(canvas) {
   plate.add(blob, plateMesh);
   addPart('plate', null, -1.0, 0, plate);
 
-  addPart('bottom', 'Crepa artesanal', -0.45, 0, crepeLayer(0, 0, crepeMat));
+  addPart('bottom', 'Crêpe artesanal', -0.45, 0, crepeLayer(0, 0, crepeMat));
 
   // relleno con "cordón" brillante visible en el borde
   const filling = new THREE.Group();
@@ -292,14 +316,14 @@ export async function createCrepeScene(canvas) {
 
   // plátano
   const banana = new THREE.Group();
-  const bGeo = new THREE.CylinderGeometry(0.14, 0.14, 0.05, 36);
+  const bGeo = new THREE.CylinderGeometry(0.14, 0.14, 0.05, seg(28, 16));
   for (const [x, z] of [[0.55, -0.35], [0.9, -0.5], [0.35, -0.8], [0.75, -0.95], [1.1, -0.25]]) {
     const m = new THREE.Mesh(bGeo, bananaMat);
     m.position.set(x - C, topH(x, z) + 0.03, z + C);
     m.rotation.set(rand(-0.15, 0.15), rand(0, 6), rand(-0.15, 0.15));
     banana.add(m);
   }
-  addPart('banana', 'Plátano', 0.9, 0.2, banana);
+  addPart('banana', 'Banano', 0.9, 0.2, banana);
 
   // fresas
   const berries = new THREE.Group();
@@ -322,7 +346,7 @@ export async function createCrepeScene(canvas) {
     m.rotation.y = rand(0, 6);
     cream.add(m);
   }
-  addPart('cream', 'Crema batida', 1.6, 0.3, cream);
+  addPart('cream', 'Chantilly', 1.6, 0.3, cream);
 
   // chocolate en hilos
   const drizzle = new THREE.Group();
@@ -335,13 +359,13 @@ export async function createCrepeScene(canvas) {
       const x = r * Math.cos(th + k * 0.06), z = -r * Math.sin(th + k * 0.06);
       pts.push(new THREE.Vector3(x - C, topH(x, z) + 0.025, z + C));
     }
-    drizzle.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.2), 260, 0.02, 10, false), chocoMat));
+    drizzle.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.2), seg(160, 80), 0.02, seg(8), false), chocoMat));
   }
   addPart('drizzle', 'Chocolate', 1.95, 0.2, drizzle);
 
   // chispas de colores
-  const N = 150;
-  const sprinkles = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.012, 0.05, 4, 8), sprinkleMat, N);
+  const N = LITE ? 110 : 150;
+  const sprinkles = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.012, 0.05, 2, 6), sprinkleMat, N);
   const palette = ['#b1203f', '#c9a6ea', '#f3b3c6', '#ffffff', '#5a3d91', '#ffd166'].map((c) => new THREE.Color(c));
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), pos = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
   for (let i = 0; i < N; i++) {
@@ -355,7 +379,16 @@ export async function createCrepeScene(canvas) {
   sprGroup.add(sprinkles);
   addPart('sprinkles', 'Chispas de colores', 2.25, 0.17, sprGroup);
 
-  model.traverse((o) => { if (o.isMesh && o !== blob) { o.castShadow = true; o.receiveShadow = true; } });
+  // sombras: todo proyecta, pero solo las superficies grandes (crêpe, relleno, plato) las reciben
+  const receivers = new Set(['plate', 'bottom', 'filling', 'top']);
+  if (!LITE) {
+    parts.forEach((p) => p.obj.traverse((o) => {
+      if (!o.isMesh || o === blob) return;
+      o.castShadow = p.name !== 'sprinkles';
+      o.receiveShadow = receivers.has(p.name);
+    }));
+    folds.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+  }
 
   /* ---------- estado controlado desde el scroll ---------- */
   const state = { x: 0, y: -1.05, rx: 0.42, ry: 0, s: 0.92, explode: 0, introY: 0, introR: 0, spin: 0.22 };
@@ -369,8 +402,12 @@ export async function createCrepeScene(canvas) {
     mouse.ty = (ev.clientY / window.innerHeight) * 2 - 1;
   }, { passive: true });
 
+  let lastW = 0, lastH = 0;
   function resize() {
     const w = window.innerWidth, h = window.innerHeight;
+    // en celular la barra del navegador cambia el alto al hacer scroll: ignoramos esos saltos pequeños
+    if (w === lastW && Math.abs(h - lastH) < 120) return;
+    lastW = w; lastH = h;
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
@@ -436,14 +473,55 @@ export async function createCrepeScene(canvas) {
     }
   }
 
-  renderer.setAnimationLoop(() => { if (active) frame(); else clock.getDelta(); });
+  /* ---------- calidad adaptativa ----------
+     Medimos el tiempo entre cuadros mientras la escena está activa. Si el promedio
+     pasa de ~22 ms (menos de 45 fps), bajamos la resolución en pasos; al llegar al
+     mínimo, apagamos las sombras. Si va sobrado mucho tiempo, subimos un paso. */
+  const perf = { n: 0, sum: 0, warm: 40, good: 0, shadowsOff: LITE };
+  function applyPixelRatio(pr) {
+    pixelRatio = Math.round(clamp(pr, minPR, maxPR) * 100) / 100;
+    renderer.setPixelRatio(pixelRatio);
+    renderer.setSize(window.innerWidth, lastH || window.innerHeight, false);
+  }
+  function adapt(ms) {
+    if (perf.warm > 0) { perf.warm--; return; }       // los primeros cuadros compilan shaders
+    perf.n++; perf.sum += Math.min(ms, 100);
+    if (perf.n < 45) return;
+    const avg = perf.sum / perf.n;
+    perf.n = 0; perf.sum = 0;
+    if (avg > 22) {
+      perf.good = 0;
+      if (pixelRatio > minPR + 0.01) applyPixelRatio(pixelRatio - 0.25);
+      else if (!perf.shadowsOff) {
+        perf.shadowsOff = true;
+        key.castShadow = false;
+        renderer.shadowMap.enabled = false;
+        scene.traverse((o) => { if (o.material) [].concat(o.material).forEach((m) => { m.needsUpdate = true; }); });
+      }
+      perf.warm = 20;
+    } else if (avg < 13 && pixelRatio < maxPR - 0.01 && ++perf.good >= 4) {
+      perf.good = 0;
+      applyPixelRatio(pixelRatio + 0.25);
+      perf.warm = 20;
+    }
+  }
 
+  let lastT = performance.now();
+  renderer.setAnimationLoop((now) => {
+    const ms = now - lastT; lastT = now;
+    if (!active || document.hidden) { clock.getDelta(); return; }
+    frame();
+    adapt(ms);
+  });
+
+  // compilar shaders antes del primer cuadro evita el tirón inicial
+  renderer.compile(scene, camera);
   await new Promise((res) => requestAnimationFrame(() => { frame(); res(); }));
 
   return {
     state,
     parts,
-    setActive(v) { active = v; },
+    setActive(v) { if (v && !active) { perf.warm = Math.max(perf.warm, 10); perf.n = 0; perf.sum = 0; } active = v; },
     setFilling(hex) { fillTarget.set(hex); this.bump(); },
     setTopping(name, on) {
       const p = parts.find((x) => x.name === name);

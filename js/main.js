@@ -40,6 +40,20 @@ $$('[data-link]').forEach((a) => { const url = CONFIG[a.dataset.link]; if (url) 
 
 const { gsap, ScrollTrigger } = window;
 gsap.registerPlugin(ScrollTrigger);
+// en celular la barra del navegador aparece/desaparece al hacer scroll: no recalcular por eso
+ScrollTrigger.config({ ignoreMobileResize: true });
+
+/* ======= menú móvil ======= */
+const nav = $('.nav'), navToggle = $('.nav__toggle');
+function setNav(open) {
+  nav.classList.toggle('is-open', open);
+  navToggle.setAttribute('aria-expanded', String(open));
+  navToggle.setAttribute('aria-label', open ? 'Cerrar menú' : 'Abrir menú');
+}
+navToggle.addEventListener('click', () => setNav(!nav.classList.contains('is-open')));
+$$('.nav__links a').forEach((a) => a.addEventListener('click', () => setNav(false)));
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setNav(false); });
+document.addEventListener('click', (e) => { if (!nav.contains(e.target)) setNav(false); });
 
 /* ======= smooth scroll (Lenis) ======= */
 let lenis = null;
