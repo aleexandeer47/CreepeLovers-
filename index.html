@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Crêpe Lovers — Your happy place · Las mejores crêpes desde 2007</title>
+  <meta name="description" content="Crêpe Lovers, las mejores crêpes de El Salvador desde 2007. Crêpes dulces y saladas, eventos y pedidos a domicilio. Your happy place.">
+  <meta name="theme-color" content="#2E1F4D">
+  <meta property="og:title" content="Crêpe Lovers — Your happy place">
+  <meta property="og:description" content="Las mejores crêpes, Est. 2007 · El Salvador">
+  <link rel="icon" href="assets/logo-mark.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;500;600;700;800&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script defer src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
+  <script type="module" src="js/main.js"></script>
+</head>
+<body>
+  <!-- Logo (corazón-cono) reutilizable -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="mark" viewBox="0 0 100 100">
+      <path d="M50 95 L13 40 C4 27 9 9 26 7 C37 6 45 12 50 19 C55 12 63 6 74 7 C91 9 96 27 87 40 Z" fill="currentColor"/>
+      <path d="M12 33 Q50 54 88 33" fill="none" stroke="var(--band, #fff)" stroke-width="5" stroke-linecap="round"/>
+    </symbol>
+  </svg>
+
+  <a class="skip" href="#main">Saltar al contenido</a>
+
+  <div class="loader" aria-hidden="true">
+    <div class="loader__inner">
+      <svg class="loader__mark"><use href="#mark"/></svg>
+      <p class="loader__word">Crêpe Lovers</p>
+      <div class="loader__bar"><span></span></div>
+      <p class="loader__script">your happy place</p>
+    </div>
+  </div>
+
+  <div class="bg" aria-hidden="true"></div>
+  <canvas id="gl" aria-hidden="true"></canvas>
+  <div class="labels" aria-hidden="true"></div>
+  <div class="cursor" aria-hidden="true"></div>
+  <div class="grain" aria-hidden="true"></div>
+
+  <header class="nav">
+    <a class="logo" href="#hero" aria-label="Crêpe Lovers, inicio">
+      <svg class="logo__mark"><use href="#mark"/></svg>
+      <span class="logo__word">Crêpe <b>Lovers</b><sup>®</sup></span>
+    </a>
+    <nav class="nav__links" aria-label="Principal">
+      <a href="#anatomy">Nuestra crêpe</a>
+      <a href="#menu">Menú</a>
+      <a href="#builder">Arma la tuya</a>
+      <a href="#events">Eventos</a>
+      <a href="#visit">Visítanos</a>
+    </nav>
+    <a class="btn btn--primary btn--sm magnetic" data-link="order" target="_blank" rel="noopener">Pedir ahora</a>
+  </header>
+
+  <main id="main">
+    <!-- HERO -->
+    <section id="hero" class="hero">
+      <div class="hero__inner">
+        <p class="eyebrow"><span>Est. 2007</span> · El Salvador</p>
+        <h1 class="hero__title">
+          <span class="line split">Your happy</span>
+          <span class="line split accent">place.</span>
+        </h1>
+        <p class="hero__sub">Las mejores crêpes, dobladas a mano y recién hechas. Dulces, saladas y siempre con mucho amor.</p>
+        <div class="hero__ctas">
+          <a class="btn btn--primary magnetic" href="#menu">Ver menú</a>
+          <a class="btn btn--ghost magnetic" href="#builder">Arma tu crêpe</a>
+        </div>
+      </div>
+      <div class="scroll-hint"><span>Desliza</span><i></i></div>
+    </section>
+
+    <!-- MANIFIESTO -->
+    <section id="manifesto" class="manifesto">
+      <div class="manifesto__inner">
+        <p class="eyebrow">Desde 2007</p>
+        <p class="manifesto__text words">Una masa finísima, una plancha bien caliente y alguien que la dobla pensando en ti. Así llevamos más de <em>quince años</em> haciendo felices a nuestros <em>crêpe lovers.</em></p>
+      </div>
+    </section>
+
+    <!-- ANATOMÍA (vista explotada) -->
+    <section id="anatomy" class="anatomy">
+      <div class="anatomy__head">
+        <p class="eyebrow">Anatomía de una crêpe</p>
+        <h2>Capa por capa,<br><em>todo cuenta.</em></h2>
+      </div>
+      <p class="anatomy__foot">Sigue deslizando ↓</p>
+      <div class="anatomy__progress"><span></span></div>
+    </section>
+
+    <!-- MARQUEE -->
+    <section class="marquee" aria-label="Lo que somos">
+      <div class="marquee__track">
+        <span>Crêpes dulces</span><svg><use href="#mark"/></svg>
+        <span>Crêpes saladas</span><svg><use href="#mark"/></svg>
+        <span>Guilt free</span><svg><use href="#mark"/></svg>
+        <span>Your happy place</span><svg><use href="#mark"/></svg>
+        <span>Crêpes dulces</span><svg><use href="#mark"/></svg>
+        <span>Crêpes saladas</span><svg><use href="#mark"/></svg>
+        <span>Guilt free</span><svg><use href="#mark"/></svg>
+        <span>Your happy place</span><svg><use href="#mark"/></svg>
+      </div>
+    </section>
+
+    <!-- MENÚ (scroll horizontal) -->
+    <section id="menu" class="menu">
+      <div class="menu__pin">
+        <header class="menu__head">
+          <div>
+            <p class="eyebrow eyebrow--light">Crêpe amour · Menú</p>
+            <h2>Elige tu <em>antojo.</em></h2>
+          </div>
+          <div class="menu__count" aria-hidden="true"><span class="cur">01</span> / <span class="tot">08</span></div>
+        </header>
+        <div class="menu__track"></div>
+        <div class="menu__bar" aria-hidden="true"><span></span></div>
+      </div>
+    </section>
+
+    <!-- ARMADOR -->
+    <section id="builder" class="builder">
+      <div class="builder__stage">
+        <p class="builder__hint"><span class="script">tu crêpe, en vivo</span></p>
+      </div>
+      <div class="builder__panel">
+        <p class="eyebrow">Arma la tuya</p>
+        <h2>Tu crêpe, <em>tus reglas.</em></h2>
+        <fieldset>
+          <legend>1 · Relleno</legend>
+          <div class="chips" id="fillings"></div>
+        </fieldset>
+        <fieldset>
+          <legend>2 · Toppings</legend>
+          <div class="chips" id="toppings"></div>
+        </fieldset>
+        <div class="builder__summary" aria-live="polite"><p id="order-text"></p></div>
+        <div class="builder__actions">
+          <button class="btn btn--primary magnetic" id="order-btn" type="button">Pedir por Instagram</button>
+          <button class="btn btn--ghost" id="random-btn" type="button">Sorpréndeme</button>
+        </div>
+        <p class="fine">Copiamos tu pedido para que solo lo pegues en el DM.</p>
+      </div>
+    </section>
+
+    <!-- POR QUÉ -->
+    <section class="features">
+      <header class="features__head">
+        <p class="eyebrow">Por qué nos aman</p>
+        <h2>Hecho para <em>compartir.</em></h2>
+      </header>
+      <div class="features__grid">
+        <article class="feature tilt" style="--c:var(--lilac)">
+          <div class="feature__icon"><svg viewBox="0 0 24 24"><path d="M12 3v3M5.6 5.6l2.1 2.1M3 12h3m12 0h3m-2.6-6.4-2.1 2.1M7 17a5 5 0 1 1 10 0Z" /><path d="M4 20h16"/></svg></div>
+          <h3>Recién hechas</h3>
+          <p>Cada crêpe sale de la plancha al momento. Nada de recalentado.</p>
+        </article>
+        <article class="feature tilt" style="--c:var(--pink)">
+          <div class="feature__icon"><svg viewBox="0 0 24 24"><path d="M12 21s-7-4.4-9.3-9C1.2 8.9 3 5 6.6 5c2.1 0 3.6 1.2 5.4 3 1.8-1.8 3.3-3 5.4-3C21 5 22.8 8.9 21.3 12 19 16.6 12 21 12 21Z"/></svg></div>
+          <h3>Dulces & saladas</h3>
+          <p>De Nutella con fresa a Lomito: hay una crêpe para cada antojo.</p>
+        </article>
+        <article class="feature tilt" style="--c:#cfe5d6">
+          <div class="feature__icon"><svg viewBox="0 0 24 24"><path d="M5 19c9 0 14-6 14-14C11 5 5 10 5 19Zm0 0 8-8"/></svg></div>
+          <h3>Guilt free</h3>
+          <p>Opciones ligeras para disfrutar sin culpa, cuando quieras.</p>
+        </article>
+        <article class="feature tilt" style="--c:var(--peach)">
+          <div class="feature__icon"><svg viewBox="0 0 24 24"><path d="M3 7h13v10H3zM16 10h3l2 3v4h-5M7 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm11 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg></div>
+          <h3>A domicilio</h3>
+          <p>Pide por Uber Eats o PedidosYa y recibe tu happy place en casa.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- EVENTOS -->
+    <section id="events" class="events">
+      <div class="events__card tilt">
+        <div class="events__copy">
+          <p class="eyebrow eyebrow--light">Eventos</p>
+          <h2>Llévanos a <em>tus eventos.</em></h2>
+          <p>Cumpleaños, bodas, oficinas o lo que se te ocurra: llevamos la estación de crêpes y la felicidad a donde estés.</p>
+          <div class="events__ctas">
+            <a class="btn btn--light magnetic" data-link="events" target="_blank" rel="noopener">WhatsApp 7601 4395</a>
+          </div>
+        </div>
+        <div class="events__art" aria-hidden="true">
+          <div class="cone"><svg><use href="#mark"/></svg></div>
+          <span class="balloon b1"></span><span class="balloon b2"></span><span class="balloon b3"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA / VISÍTANOS -->
+    <section id="visit" class="cta">
+      <div class="floaties" aria-hidden="true">
+        <svg class="floaty f1"><use href="#mark"/></svg>
+        <svg class="floaty f2"><use href="#mark"/></svg>
+        <svg class="floaty f3"><use href="#mark"/></svg>
+        <svg class="floaty f4"><use href="#mark"/></svg>
+        <svg class="floaty f5"><use href="#mark"/></svg>
+      </div>
+      <p class="eyebrow eyebrow--light">¿Se te antojó?</p>
+      <h2 class="cta__title split-cta">Ven por la tuya.</h2>
+      <p class="cta__sub">Visítanos en <b>Crêpe Lovers La Gran Vía</b> y nuestros demás restaurantes. Horarios, promos y novedades, siempre primero en Instagram.</p>
+      <div class="cta__btns">
+        <a class="btn btn--light magnetic" data-link="linktree" target="_blank" rel="noopener">Ver restaurantes</a>
+        <a class="btn btn--outline magnetic" data-link="instagram" target="_blank" rel="noopener">Seguir @crepelovers</a>
+      </div>
+      <div class="delivery">
+        <span>También en</span>
+        <a data-link="ubereats" target="_blank" rel="noopener">Uber Eats</a>
+        <a data-link="pedidosya" target="_blank" rel="noopener">PedidosYa</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="footer__top">
+      <div>
+        <a class="logo logo--light" href="#hero">
+          <svg class="logo__mark"><use href="#mark"/></svg>
+          <span class="logo__word">Crêpe <b>Lovers</b><sup>®</sup></span>
+        </a>
+        <p class="footer__tag script">your happy place</p>
+      </div>
+      <nav class="footer__links" aria-label="Redes">
+        <a data-link="instagram" target="_blank" rel="noopener">Instagram</a>
+        <a data-link="linktree" target="_blank" rel="noopener">Linktree</a>
+        <a data-link="events" target="_blank" rel="noopener">Eventos</a>
+      </nav>
+    </div>
+    <p class="footer__word" aria-hidden="true">Crêpe Lovers</p>
+    <div class="footer__bottom">
+      <span>© <span id="year"></span> Crêpe Lovers · Las mejores crêpes, Est. 2007 · El Salvador</span>
+    </div>
+  </footer>
+
+  <div class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
